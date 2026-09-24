@@ -10,6 +10,8 @@ namespace Touch {
         My_Vector2 pos{};
         int id = 0;
         bool isDown = false;
+        bool routeSet = false;
+        bool capturedByGui = false;
     };
 
     struct Device {
@@ -45,4 +47,8 @@ namespace Touch {
     void setOrientation(int orientation);
 
     void setOtherTouch(bool p_otherTouch);
+
+    void setInputSuppressed(bool suppressed);
+    void setImeTop(float top);
+    void UpdateGuiCapture();
 }

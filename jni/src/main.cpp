@@ -4,7 +4,17 @@
 
 
 
+#include "Android_input/InputBridge.h"
+#include <csignal>
+
+namespace {
+volatile sig_atomic_t exit_requested = 0;
+void RequestExit(int) { exit_requested = 1; }
+}
+
 int main(int argc, char *argv[]) {
+    std::signal(SIGINT, RequestExit);
+    std::signal(SIGTERM, RequestExit);
     ::graphics = GraphicsManager::getGraphicsInterface(GraphicsManager::VULKAN);
 
     //获取屏幕信息    
@@ -24,21 +34,27 @@ int main(int argc, char *argv[]) {
     
     ::init_My_drawdata(); //初始化绘制数据
 
+    InputBridge::Start();
     static bool flag = true;
-    while (flag) {
+    while (flag && !exit_requested) {
         drawBegin();
         if (permeate_record == false) {
             android::ANativeWindowCreator::ProcessMirrorDisplay();
         }
+        InputBridge::NewFrame();
         graphics->NewFrame();
         
         Layout_tick_UI(&flag);
 
-        graphics->EndFrame();        
+        graphics->EndFrame();
+        Touch::UpdateGuiCapture();
+        InputBridge::SetTextInputWanted(ImGui::GetIO().WantTextInput);
     }
     
     // graphics->DeleteTexture(image);
+    Touch::Close();
     graphics->Shutdown();
     android::ANativeWindowCreator::Destroy(::window);
+    InputBridge::Stop();
     return 0;
 }

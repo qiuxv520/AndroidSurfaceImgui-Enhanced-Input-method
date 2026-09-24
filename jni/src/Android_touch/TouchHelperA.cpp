@@ -7,9 +7,12 @@
 #include <vector>
 #include <thread>
 #include <unordered_map>
+#include <atomic>
+#include <poll.h>
 #include "spinlock.h"
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "TouchHelperA.h"
 #include "Utils.h"
 
@@ -21,6 +24,8 @@
 //TODO 触摸穿透
 
 namespace Touch {
+    static std::atomic<bool> inputSuppressed{false};
+    static std::atomic<float> imeTop{-1.0f};
     static struct {
         input_event downEvent[2]{{{}, EV_KEY, BTN_TOUCH,       1}, {{}, EV_KEY, BTN_TOOL_FINGER, 1}};
         input_event event[512]{0};
@@ -36,7 +41,8 @@ namespace Touch {
 
     static int orientation = 0;
 
-    static bool initialized = false;
+    static std::atomic<bool> initialized{false};
+    static std::vector<pthread_t> touchThreads;
 
     static bool readOnly = false;
 
@@ -45,13 +51,15 @@ namespace Touch {
     static std::function<void(std::vector<Device> *)> callback;
 
     static spinlock lock;
+    // Published by the render thread; accessed under the existing touch lock.
+    static std::vector<ImRect> guiRects;
 
     void Upload() {
         static bool isFirstDown = true;
         int tmpCnt = 0, tmpCnt2 = 0;
         for (auto &device: devices) {
             for (auto &finger: device.Finger) {
-                if (finger.isDown) {
+                if (finger.isDown && !finger.capturedByGui) {
                     if (tmpCnt2++ > 20) {
                         goto finish;
                     }
@@ -182,6 +190,8 @@ namespace Touch {
         input_event inputEvent[64]{0};
 
         while (initialized) {
+            pollfd pfd{device.fd, POLLIN, 0};
+            if (poll(&pfd, 1, 100) <= 0 || !initialized) continue;
             auto readSize = (int32_t) read(device.fd, inputEvent, sizeof(inputEvent));
             if (readSize <= 0 || (readSize % sizeof(input_event)) != 0) {
                 continue;
@@ -202,6 +212,7 @@ namespace Touch {
                         } else {
                             device.Finger[latest].id = (i * 2 + 1) * maxF + latest;
                             device.Finger[latest].isDown = true;
+                            device.Finger[latest].routeSet = false;
                         }
                         continue;
                     }
@@ -217,10 +228,25 @@ namespace Touch {
                     }
                 }
                 if (ie.code == SYN_REPORT) {
+                    for (auto& finger : device.Finger) {
+                        if (!finger.isDown || finger.routeSet) continue;
+                        const auto point = Touch2Screen(finger.pos);
+                        const float keyboardTop = imeTop.load(std::memory_order_relaxed);
+                        const bool keyboardTouch = inputSuppressed.load(std::memory_order_relaxed)
+                                && (keyboardTop < 0.0f || point.y >= keyboardTop);
+                        finger.capturedByGui = false;
+                        if (!keyboardTouch) for (const ImRect& rect : guiRects) {
+                            if (rect.Contains(ImVec2(point.x, point.y))) { finger.capturedByGui = true; break; }
+                        }
+                        // Keep ownership for the entire gesture so no partial drag leaks through.
+                        finger.routeSet = true;
+                    }
                     if (ImGui::GetCurrentContext() != nullptr) {
                         ImGuiIO &io = ImGui::GetIO();
-                        if (device.Finger[latest].isDown) {
-                            auto pos = Touch2Screen(device.Finger[latest].pos);
+                        auto pos = Touch2Screen(device.Finger[latest].pos);
+                        const bool blocked = inputSuppressed.load(std::memory_order_relaxed)
+                            && (imeTop.load(std::memory_order_relaxed) < 0.0f || pos.y >= imeTop.load(std::memory_order_relaxed));
+                        if (device.Finger[latest].isDown && !blocked) {
                             io.MousePos = ImVec2(pos.x, pos.y);
                             io.MouseDown[0] = true;
                         } else {
@@ -418,6 +444,7 @@ namespace Touch {
             devices[i].S2TX = (float) screenX / (float) devices[i].absX.maximum;
             devices[i].S2TY = (float) screenY / (float) devices[i].absY.maximum;
             pthread_create(&t, nullptr, TypeA, (void *) (long) i);
+            touchThreads.push_back(t);
         }
         if (size.x > size.y) {
             std::swap(size.x, size.y);
@@ -433,7 +460,9 @@ namespace Touch {
     }
 
     void Close() {
-        if (initialized) {
+        if (initialized.exchange(false)) {
+            for (pthread_t thread : touchThreads) pthread_join(thread, nullptr);
+            touchThreads.clear();
             for (auto &device: devices) {
                 if (!readOnly)
                     ioctl(device.fd, EVIOCGRAB, UNGRAB);
@@ -457,6 +486,8 @@ namespace Touch {
         touch.id = 19;
         touch.pos = My_Vector2(x, y) * touch_scale;
         touch.isDown = true;
+        touch.routeSet = true;
+        touch.capturedByGui = false;
         Upload();
         lock.unlock();
     }
@@ -541,5 +572,26 @@ namespace Touch {
 
     void setOtherTouch(bool p_otherTouch) {
         otherTouch = p_otherTouch;
+    }
+
+    void setInputSuppressed(bool suppressed) {
+        if (!suppressed) imeTop.store(-1.0f, std::memory_order_relaxed);
+        inputSuppressed.store(suppressed, std::memory_order_relaxed);
+        if (suppressed && ImGui::GetCurrentContext()) ImGui::GetIO().MouseDown[0] = false;
+    }
+
+    void setImeTop(float top) { imeTop.store(top, std::memory_order_relaxed); }
+
+    void UpdateGuiCapture() {
+        std::vector<ImRect> current;
+        if (ImGuiContext* context = ImGui::GetCurrentContext()) {
+            for (ImGuiWindow* guiWindow : context->Windows) {
+                if (guiWindow->Active && !guiWindow->Hidden && !(guiWindow->Flags & ImGuiWindowFlags_NoMouseInputs))
+                    current.push_back(guiWindow->OuterRectClipped);
+            }
+        }
+        lock.lock();
+        guiRects.swap(current);
+        lock.unlock();
     }
 }

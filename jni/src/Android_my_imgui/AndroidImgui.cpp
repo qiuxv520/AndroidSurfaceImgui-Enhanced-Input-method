@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "my_imgui_impl_android.h"
 #include "stb_image.h"
+#include "Android_input/InputBridge.h"
 
 bool AndroidImgui::Init_Render(ANativeWindow *window, float width, float height) {
     m_Window = window;
@@ -20,6 +21,8 @@ bool AndroidImgui::Init_Render(ANativeWindow *window, float width, float height)
     io.IniFilename = nullptr;
     io.LogFilename = nullptr;
     io.DisplaySize = {width, height};
+    io.GetClipboardTextFn = InputBridge::GetClipboardText;
+    io.SetClipboardTextFn = InputBridge::SetClipboardText;
     //io.FontGlobalScale = 1.3f;
     // Setup Dear ImGui style
     //ImGui::StyleColorsDark();

@@ -24,6 +24,7 @@ LOCAL_CPPFLAGS += -DIMGUI_ENABLE_FREETYPE     #启用imgui的freetype支持
 
 #引入头文件到全局#
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/include
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../input-helper/build/embedded
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/include/Android_draw
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/include/Android_Graphics
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/include/Android_my_imgui
@@ -46,6 +47,7 @@ LOCAL_SRC_FILES += src/Android_Graphics/vulkan_wrapper.cpp
 LOCAL_SRC_FILES += src/Android_my_imgui/AndroidImgui.cpp
 LOCAL_SRC_FILES += src/Android_my_imgui/my_imgui.cpp
 LOCAL_SRC_FILES += src/Android_my_imgui/my_imgui_impl_android.cpp
+LOCAL_SRC_FILES += src/Android_input/InputBridge.cpp
 LOCAL_SRC_FILES += src/ImGui/imgui.cpp
 LOCAL_SRC_FILES += src/ImGui/imgui_demo.cpp
 LOCAL_SRC_FILES += src/ImGui/imgui_draw.cpp

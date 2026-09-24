@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.imguiinput" android:versionCode="3" android:versionName="dum-3">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-sdk android:minSdkVersion="22" android:targetSdkVersion="28" />
+    <application android:label="dum" android:allowBackup="false" android:usesCleartextTraffic="true">
+        <meta-data android:name="watermark" android:value="dum" />
+        <service android:name=".InputService" android:exported="true" />
+    </application>
+</manifest>

@@ -1,4 +1,6 @@
 #include "draw.h"
+#include "Android_input/InputBridge.h"
+#include <cstdio>
 
 #include "My_font/zh_Font.h"
 #include "My_font/fontawesome-brands.h"
@@ -128,9 +130,19 @@ void Layout_tick_UI(bool *main_thread_flag) {
         ImGui::SameLine();
         ImGui::Checkbox("绘制射线", &show_draw_Line);
         ImGui::Checkbox("坤坤窗口", &show_another_window);
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+        ImGui::SliderFloat("数值###float", &f, 0.0f, 1.0f);
+
+        static char input_text[1024] = "";
+        ImGui::InputText("文本输入###Text input", input_text, sizeof(input_text));
+        if (ImGui::Button("粘贴文本###Paste clipboard")) {
+            std::snprintf(input_text, sizeof(input_text), "%s", InputBridge::GetClipboardText(nullptr));
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("复制文本###Copy text")) ImGui::SetClipboardText(input_text);
+        ImGui::TextUnformatted(InputBridge::ImeAvailable() ? "输入法已就绪" :
+            InputBridge::Ready() ? "剪贴板已就绪，输入法不可用" : "输入服务未就绪");
         ImGui::ColorEdit4("取色器", (float *) &clear_color); // Edit 3 floats representing a color
-        if (ImGui::Button("Button")) {
+        if (ImGui::Button("计数加一###Button")) {
             counter++;
         }
         

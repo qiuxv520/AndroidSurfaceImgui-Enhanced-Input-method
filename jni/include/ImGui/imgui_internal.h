@@ -1152,6 +1152,7 @@ struct IMGUI_API ImGuiInputTextState
     bool                    CursorFollow;           // set when we want scrolling to follow the current cursor position (not always!)
     bool                    SelectedAllMouseLock;   // after a double-click to select all, we ignore further mouse drags to update selection
     bool                    Edited;                 // edited this frame
+    bool                    ExternalEditPending;    // Android IME edit applied between frames
     bool                    WantReloadUserBuf;      // force a reload of user buf so it may be modified externally. may be automatic in future version.
     int                     ReloadSelectionStart;
     int                     ReloadSelectionEnd;
@@ -1162,6 +1163,7 @@ struct IMGUI_API ImGuiInputTextState
     void        ClearFreeMemory()           { TextA.clear(); TextToRevertTo.clear(); }
     void        OnKeyPressed(int key);      // Cannot be inline because we call in code in stb_textedit.h implementation
     void        OnCharPressed(unsigned int c);
+    void        ApplyExternalText(const char* text, int selection_start, int selection_end); // UTF-8 byte offsets
 
     // Cursor & Selection
     void        CursorAnimReset();

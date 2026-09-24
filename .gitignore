@@ -1,2 +1,21 @@
-obj
+# Build intermediates; keep the single executable in libs/arm64-v8a under version control.
+/obj/
+/input-helper/build/
+
+# Local reference material supplied for development, not part of the distributable source.
+/参看/
+
+# Editor settings, logs, and signing material.
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+imgui.ini
+*.keystore
+*.jks
+
+# Obsolete sidecars from the previous multi-file build.
+/libs/**/*.apk
+/libs/**/*.dex
+/libs/**/*.idsig

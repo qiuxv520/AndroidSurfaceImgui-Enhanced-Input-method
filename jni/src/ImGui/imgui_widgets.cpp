@@ -4208,6 +4208,37 @@ void ImGuiInputTextState::ReloadUserBufAndSelectAll()       { WantReloadUserBuf 
 void ImGuiInputTextState::ReloadUserBufAndKeepSelection()   { WantReloadUserBuf = true; ReloadSelectionStart = Stb->select_start; ReloadSelectionEnd = Stb->select_end; }
 void ImGuiInputTextState::ReloadUserBufAndMoveToEnd()       { WantReloadUserBuf = true; ReloadSelectionStart = ReloadSelectionEnd = INT_MAX; }
 
+// Android IMEs own a complete editable buffer. Apply it atomically instead of queuing
+// Backspace events (which trickle across frames and cannot represent arbitrary selections).
+void ImGuiInputTextState::ApplyExternalText(const char* text, int selection_start, int selection_end)
+{
+    if ((Flags & ImGuiInputTextFlags_ReadOnly) || !TextA.Data || BufCapacity <= 0)
+        return;
+    int length = (int)ImStrlen(text);
+    if (!(Flags & ImGuiInputTextFlags_CallbackResize) && length >= BufCapacity)
+    {
+        length = BufCapacity - 1;
+        while (length > 0 && (static_cast<unsigned char>(text[length]) & 0xC0) == 0x80)
+            --length;
+    }
+    TextSrc = TextA.Data;
+    if (TextLen != length || memcmp(TextA.Data, text, length) != 0)
+    {
+        ImStb::stb_textedit_replace(this, Stb, text, length);
+        ExternalEditPending = true;
+    }
+    selection_start = ImClamp(selection_start, 0, TextLen);
+    selection_end = ImClamp(selection_end, 0, TextLen);
+    while (selection_start > 0 && (static_cast<unsigned char>(TextA[selection_start]) & 0xC0) == 0x80) --selection_start;
+    while (selection_end > 0 && (static_cast<unsigned char>(TextA[selection_end]) & 0xC0) == 0x80) --selection_end;
+    Stb->select_start = selection_start;
+    Stb->cursor = Stb->select_end = selection_end;
+    Stb->has_preferred_x = 0;
+    CursorFollow = true;
+    CursorAnimReset();
+    TextSrc = NULL;
+}
+
 ImGuiInputTextCallbackData::ImGuiInputTextCallbackData()
 {
     memset(this, 0, sizeof(*this));
@@ -4709,7 +4740,8 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     if (g.ActiveId == id)
     {
         IM_ASSERT(state != NULL);
-        state->Edited = false;
+        state->Edited = state->ExternalEditPending;
+        state->ExternalEditPending = false;
         state->BufCapacity = buf_size;
         state->Flags = flags;
 

@@ -1,158 +1,113 @@
-# AndroidSurfaceImgui C++17 Enhanced
+# AndroidSurfaceImgui Enhanced Input Method
 
-## 项目介绍
+运行在 Android 上的原生 C++ / Dear ImGui 示例，提供系统软键盘输入和剪贴板读写。发布产物只有一个可执行文件，不需要手动部署 APK 或 DEX。
 
-本项目基于 [AndroidSurfaceImgui](https://github.com/Bzi-Han/AndroidSurfaceImgui) 进行修改和增强，是一个可以编译成Android可执行文件的项目，通过Android API创建Surface并进行Dear ImGui的绘制。
+> 需要 root。单文件分发不代表完全不安装应用：运行期间会自动安装名为 `dum` 的临时输入辅助应用，退出时卸载。它没有桌面入口，但仍可在系统应用列表中看到。
 
-### 主要改进
+## 功能
 
-- ✅ **C++17兼容性**：完全兼容C++17标准，提供更好的现代C++特性支持
-- ✅ **增强的Surface管理**：新增清理Surface函数，确保资源正确释放
-- ✅ **修复重创建问题**：解决了关闭后不能重新创建根Surface的问题
-- ✅ **防录屏功能**：支持防录屏模式切换，保护敏感内容
-- ✅ **广泛系统支持**：支持Android 5.0 - Android 16.0全版本
-- ✅ **NDK构建系统**：使用ndk-build进行编译，简化构建流程
+- 中文界面的文本输入、复制和粘贴控件。
+- 调用设备现有输入法，支持中文输入、光标/选区同步和删除上次输入的文字。
+- 收起键盘后可再次点击同一输入框继续编辑。
+- 输入服务使用透明 `1×1` 悬浮窗口，不启动 Activity、不请求音频焦点；已在测试设备上验证输入时前台视频继续播放。
+- 预热服务并复用输入窗口，减少再次唤起时的冷启动开销。
+- ImGui 窗口内的触摸交给 ImGui，键盘和窗口外的触摸交给 Android。
+- APK 和桥接 DEX 内嵌；正常关闭主窗口后自动卸载辅助应用、清理运行时临时资源。
 
-## 支持的Android版本
+## 运行环境与兼容性
 
-| 版本范围 | 支持状态 | 备注 |
-|---------|---------|------|
-| Android 5.0 - 5.1 | ✅ 完全支持 | API Level 21-22 |
-| Android 6.0 | ✅ 完全支持 | API Level 23 |
-| Android 7.0 - 7.1 | ✅ 完全支持 | API Level 24-25 |
-| Android 8.0 - 8.1 | ✅ 完全支持 | API Level 26-27 |
-| Android 9.0 | ✅ 完全支持 | API Level 28 |
-| Android 10.0 | ✅ 完全支持 | API Level 29 |
-| Android 11.0 | ✅ 完全支持 | API Level 30 |
-| Android 12.0 - 12.1 | ✅ 完全支持 | API Level 31-32 |
-| Android 13.0 | ✅ 完全支持 | API Level 33 |
-| Android 14.0 | ✅ 完全支持 | API Level 34 |
-| Android 15.0 | ✅ 完全支持 | API Level 35 |
-| Android 16.0 | ✅ 完全支持 | API Level 36 |
+| 项目 | 当前情况 |
+| --- | --- |
+| 架构 | 构建和发布目标为 `arm64-v8a` |
+| 最低编译 API | `android-22`，不等于所有 Android 5.1 以上设备均已验证 |
+| 设备权限 | root，能够执行 `su`、访问触摸设备及 `/data/adb` |
+| 图形后端 | 主程序默认 Vulkan；源码同时提供 OpenGL ES 后端 |
+| 已验证设备 | Android 16 的 OnePlus 设备；输入、再次删除、剪贴板、视频播放与退出清理已实测 |
 
-## 环境要求
+项目使用 Android 私有 Surface 接口及 root 桥接，不同系统版本、厂商 ROM、输入法和安全策略可能影响行为。新增输入功能没有完成全版本兼容性测试，不保证所有设备表现相同。
 
-### 开发环境
-- **Android NDK**: r21e 或更高版本
-- **编译器**: 支持C++17的GCC/Clang
-- **最低API Level**: 22 (Android 5.1)
-- **目标架构**: arm64-v8a, armeabi-v7a, x86, x86_64
+## 直接运行
 
-### 运行环境
-- **Android设备**: Android 5.0及以上
-- **权限要求**: 需要系统级权限或root权限
-- **硬件要求**: 支持OpenGL ES 3.0或Vulkan的设备
+仓库保留已编译的 [AndroidSurfaceImguiEnhanced](libs/arm64-v8a/AndroidSurfaceImguiEnhanced)。连接 ADB 后，只需推送这一个文件：
 
-## 快速开始
-
-### 1. 克隆项目
-
-```bash
-git clone https://github.com/AFan4724/AndroidSurfaceImgui-Enhanced.git
-cd AndroidSurfaceImgui-Enhanced
+```powershell
+adb push libs/arm64-v8a/AndroidSurfaceImguiEnhanced /data/local/tmp/AndroidSurfaceImguiEnhanced
+adb shell su -c 'chmod 755 /data/local/tmp/AndroidSurfaceImguiEnhanced'
+adb shell su -c /data/local/tmp/AndroidSurfaceImguiEnhanced
 ```
 
-### 2. 编译项目
+1. 等待窗口显示“输入法已就绪”，点击“文本输入”唤起键盘。
+2. 使用“复制文本”和“粘贴文本”读写系统剪贴板。
+3. 收起键盘后再次点击输入框，可继续编辑或删除原来的文字。
+4. 关闭 ImGui 主窗口结束程序；仅收起键盘不会卸载辅助应用。
 
-使用ndk-build进行编译：
+更新程序前先关闭正在运行的旧版本，不要覆盖仍在执行的二进制文件。
 
-```bash
-# 设置NDK路径（如果未设置环境变量）
-export NDK_ROOT=/path/to/your/ndk
+## 从源码构建
 
-# 编译所有架构
-ndk-build
+当前提供 Windows PowerShell 构建脚本，需要以下工具：
 
-# 或编译特定架构
-ndk-build APP_ABI=arm64-v8a
+- Android NDK：已验证 `25.2.9519653`。
+- Android SDK：默认使用 `platforms/android-35` 和 `build-tools/35.0.1`。
+- JDK：`java`、`javac`、`keytool` 可从 `PATH` 调用，且能运行上述 SDK 工具。本地验证环境为 JDK 25。
+- ADB：仅部署和设备测试需要。
+
+```powershell
+git clone https://github.com/ssyclr/AndroidSurfaceImgui-Enhanced-Input-method.git
+cd AndroidSurfaceImgui-Enhanced-Input-method
+
+# 按自己的安装位置调整路径
+.\build.ps1 -SdkRoot 'D:\ASWJ' -NdkRoot 'D:\ASWJ\ndk\25.2.9519653'
 ```
 
-### 3. 部署到设备
+可选参数：`-Platform android-35`、`-BuildToolsVersion 35.0.1`、`-Jobs 4`。
 
-```bash
-# 推送到设备
-adb push libs/arm64-v8a/imgui_chain_v2-1.0 /data/local/tmp/
+构建顺序为 Java → DEX → 签名 APK → 内嵌字节数组 → NDK 编译链接。最终输出：
 
-# 设置执行权限
-adb shell chmod 755 /data/local/tmp/imgui_chain_v2-1.0
-
-# 运行程序
-adb shell su -c "/data/local/tmp/imgui_chain_v2-1.0"
+```text
+libs/arm64-v8a/AndroidSurfaceImguiEnhanced
 ```
 
-## 项目结构
+`obj/` 和 `input-helper/build/` 是不提交到 Git 的中间目录。辅助 APK 中已经包含桥接 DEX，不需要在发布目录另放 APK、DEX 或 `.idsig`。首次构建或修改 Java 后应运行 `build.ps1`；只改 C++ 时可以使用 NDK 增量构建。
 
-```
-AndroidSurfaceImgui-Enhanced/
-├── jni/                          # NDK源码目录
-│   ├── src/                      # 源代码
-│   │   ├── main.cpp             # 程序入口
-│   │   ├── Android_draw/        # 绘制相关
-│   │   ├── Android_Graphics/    # 图形渲染管理
-│   │   ├── Android_my_imgui/    # ImGui Android适配
-│   │   ├── Android_touch/       # 触摸事件处理
-│   │   ├── ImGui/              # Dear ImGui库
-│   │   └── My_Utils/           # 工具函数
-│   ├── include/                 # 头文件
-│   ├── Android.mk              # NDK构建配置
-│   └── Application.mk          # 应用配置
-├── libs/                        # 编译输出目录
-└── README.md                   # 项目文档
+构建脚本在本地生成开发用签名文件 `input-helper/build/debug.keystore`，不会将其提交到仓库。它仅用于本示例临时辅助应用，不应作为其他产品的正式签名密钥。
+
+## 验证
+
+本地文本同步回归测试需要支持 C++17 的 MinGW `g++`：
+
+```powershell
+.\tests\run-text-sync.ps1
+# 或指定编译器位置
+.\tests\run-text-sync.ps1 -Compiler 'D:\Tools\mingw64\bin\g++.exe'
 ```
 
-## 核心功能
+测试覆盖重新聚焦、删除旧文字、中间编辑、选区、清空和 UTF-8 容量边界。设备验证步骤及可选诊断工具见 [输入法实现与维护](INPUT_METHOD.md#测试与排错)。
 
-### Surface管理
+## 源码导航
 
-```cpp
-// 创建Surface
-::window = android::ANativeWindowCreator::Create("test", width, height, permeate_record);
+| 路径 | 用途 |
+| --- | --- |
+| `jni/src/Android_draw/draw_Gui.cpp` | 示例界面和中文控件 |
+| `jni/src/Android_input/` | 内嵌资源释放、C++ 输入会话与剪贴板桥接 |
+| `input-helper/src/` | root Java 桥接和输入窗口 Service |
+| `jni/src/Android_touch/` | 原始触摸读取与路由 |
+| `jni/src/ImGui/`、`jni/include/ImGui/` | Dear ImGui 与本项目的文本同步扩展 |
+| `tests/` | 文本同步回归与设备诊断源码 |
+| `build.ps1`、`build-input-helper.ps1` | 单文件构建入口与资源构建 |
 
-// 清理Surface（新增功能）
-android::ANativeWindowCreator::Cleanup();
+## 注意事项
 
-// 销毁Surface
-android::ANativeWindowCreator::Destroy(::window);
-```
+- 使用 root 包管理命令自动安装辅助应用，不弹出安装界面；系统仍保留正常的应用可见性。
+- 程序仅为自身辅助包设置悬浮窗权限和短期后台启动许可，不修改永久电池白名单。
+- 本机桥接使用随机令牌校验连接；辅助应用的 `INTERNET` 权限用于 loopback 通信，当前实现不连接外部服务器。
+- 整个进程树被强制终止、设备断电或系统拒绝卸载时，自动清理可能无法完成。恢复方法见 [输入法实现与维护](INPUT_METHOD.md#测试与排错)。
+- “过录制”是继承的画面采集相关开关，截图或录屏可能看不到原生 Surface；输入功能应以设备实际显示为准。
 
-### 防录屏功能
+## 更新记录与来源
 
-```cpp
-// 启用防录屏模式
-bool permeate_record = false;  // false = 防录屏，true = 允许录屏
+变更记录见 [CHANGELOG.md](CHANGELOG.md)，实现细节见 [INPUT_METHOD.md](INPUT_METHOD.md)。
 
-// 在创建Surface时设置
-::window = android::ANativeWindowCreator::Create("test", width, height, permeate_record);
-```
+本项目基于 [Bzi-Han/AndroidSurfaceImgui](https://github.com/Bzi-Han/AndroidSurfaceImgui) 及 [AFan4724/AndroidSurfaceImgui-Enhanced](https://github.com/AFan4724/AndroidSurfaceImgui-Enhanced) 的增强版本继续开发，使用 Dear ImGui、FreeType 和 Font Awesome 等组件。C++ 调用剪贴板的接入参考了开发时提供的示例，原始参考材料不作为构建输入。
 
-## 贡献指南
-
-欢迎提交Issue和Pull Request！
-
-1. Fork本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启Pull Request
-
-## 许可证
-
-本项目基于MIT许可证开源 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 致谢
-
-- 感谢 [Bzi-Han/AndroidSurfaceImgui](https://github.com/Bzi-Han/AndroidSurfaceImgui) 提供的原始项目基础
-- 感谢 [Dear ImGui](https://github.com/ocornut/imgui) 团队提供优秀的GUI库
-- 感谢所有贡献者和测试者
-
-## 赞助
-
-- 感谢 花椒鸡 赞助
-
-## 更新日志
-
-详见 [CHANGELOG.md](CHANGELOG.md)。
-
----
-
-**注意**: 本项目需要系统级权限才能正常运行，请确保在具有适当权限的环境中使用。
+许可证沿用仓库 [LICENSE](LICENSE)。分发时请保留上游署名和第三方组件的声明；本次整理不更改现有许可证条款。
